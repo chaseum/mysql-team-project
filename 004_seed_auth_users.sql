@@ -1,5 +1,3 @@
-USE teamdb;
-
 INSERT INTO
     Membership (
         Membership_ID,
