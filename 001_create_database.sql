@@ -1,5 +1,5 @@
 --Below are tables with no foreign keys
---@Block,
+--@Block
 CREATE TABLE Department (
     Department_ID INT AUTO_INCREMENT PRIMARY KEY NOT NULL,
     Department_Name VARCHAR(30) NOT NULL,
@@ -10,7 +10,6 @@ CREATE TABLE Department (
     Updated_AT DATE
 );
 
---@Block
 CREATE TABLE Artist (
     Artist_ID INT AUTO_INCREMENT PRIMARY KEY NOT NULL,
     Artist_Name VARCHAR(30) NOT NULL,
@@ -19,7 +18,6 @@ CREATE TABLE Artist (
     Birth_Place VARCHAR(30)
 );
 
---@Block
 CREATE TABLE Exhibition (
     Exhibition_ID INT AUTO_INCREMENT PRIMARY KEY NOT NULL,
     Exhibition_Name VARCHAR(50) NOT NULL,
@@ -28,7 +26,6 @@ CREATE TABLE Exhibition (
     CHECK (Ending_Date >= Starting_Date)
 );
 
---@Block
 CREATE TABLE Gift_Shop_Item (
     Gift_Shop_Item_ID INT AUTO_INCREMENT PRIMARY KEY NOT NULL,
     Name_of_Item VARCHAR(30),
@@ -42,7 +39,6 @@ CREATE TABLE Gift_Shop_Item (
     CHECK (Stock_Quantity >= 0)
 );
 
---@Block
 CREATE TABLE Food (
     Food_ID INT AUTO_INCREMENT PRIMARY KEY NOT NULL,
     Food_Name VARCHAR(30),
@@ -54,7 +50,6 @@ CREATE TABLE Food (
     CHECK (Food_Price >= 0)
 );
 
---@Block
 CREATE TABLE Membership (
     Membership_ID INT AUTO_INCREMENT PRIMARY KEY NOT NULL,
     Last_Name VARCHAR(30) NOT NULL,
@@ -107,7 +102,6 @@ CREATE TABLE Employee (
     CONSTRAINT fk_Employee_Department FOREIGN KEY (Department_ID) REFERENCES Department (Department_ID) ON DELETE SET NULL
 );
 
--- @Block
 CREATE TABLE ARTWORK (
     Artwork_ID INT AUTO_INCREMENT PRIMARY KEY NOT NULL,
     Title VARCHAR(30) NOT NULL,
@@ -123,7 +117,6 @@ CREATE TABLE ARTWORK (
     CONSTRAINT fk_Artwork_Artist FOREIGN KEY (Artist_ID) REFERENCES Artist (Artist_ID) ON DELETE CASCADE
 );
 
--- @Block
 CREATE TABLE Exhibition_Artwork (
     Exhibition_Artwork_ID INT AUTO_INCREMENT PRIMARY KEY NOT NULL,
     Display_Room VARCHAR(30),
@@ -139,7 +132,6 @@ CREATE TABLE Exhibition_Artwork (
     CONSTRAINT fk_Exhibition_Artwork_Artwork FOREIGN KEY (Artwork_ID) REFERENCES Artwork (Artwork_ID)
 );
 
--- @Block
 CREATE TABLE Ticket (
     Ticket_ID INT AUTO_INCREMENT PRIMARY KEY NOT NULL,
     Purchase_type VARCHAR(30),
@@ -159,7 +151,6 @@ CREATE TABLE Ticket (
     CONSTRAINT fk_ticket_Membership FOREIGN KEY (Membership_ID) REFERENCES Membership (Membership_ID)
 );
 
--- @Block
 CREATE TABLE ticket_line (
     Ticket_line_ID INT AUTO_INCREMENT PRIMARY KEY NOT NULL,
     Ticket_Type VARCHAR(30),
@@ -176,7 +167,6 @@ CREATE TABLE ticket_line (
     CONSTRAINT fk_ticket_line_exhibition FOREIGN KEY (exhibition_ID) REFERENCES exhibition (exhibition_ID)
 );
 
--- @Block
 CREATE TABLE Event (
     event_ID INT AUTO_INCREMENT PRIMARY KEY NOT NULL,
     event_Name VARCHAR(30) NOT NULL,
@@ -194,7 +184,6 @@ CREATE TABLE Event (
     CONSTRAINT fk_Event_Coordinator FOREIGN KEY (coordinator_ID) REFERENCES Employee (Employee_ID)
 );
 
--- @Block
 CREATE TABLE event_registration (
     Event_Registration_ID INT AUTO_INCREMENT PRIMARY KEY NOT NULL,
     Registration_Date DATE NOT NULL,
@@ -210,8 +199,6 @@ CREATE TABLE event_registration (
     CONSTRAINT fk_Reg_Membership FOREIGN KEY (Membership_ID) REFERENCES Membership (Membership_ID),
     CONSTRAINT fk_Reg_Ticket FOREIGN KEY (Ticket_ID) REFERENCES Ticket (Ticket_ID)
 );
-
---@Block
 
 CREATE TABLE Schedule (
     Schedule_ID INT AUTO_INCREMENT PRIMARY KEY NOT NULL,
@@ -230,7 +217,6 @@ CREATE TABLE Schedule (
     CONSTRAINT fk_Schedule_Exhibition FOREIGN KEY (Exhibition_ID) REFERENCES Exhibition (Exhibition_ID)
 );
 
---@block
 CREATE TABLE Gift_Shop_Sale (
     Gift_Shop_Sale_ID INT AUTO_INCREMENT PRIMARY KEY,
     Sale_Date DATE NOT NULL,
@@ -242,7 +228,6 @@ CREATE TABLE Gift_Shop_Sale (
     CONSTRAINT fk_Gift_Shop_Sale_EMPLOYEE FOREIGN KEY (Employee_ID) REFERENCES Employee (Employee_ID) ON DELETE RESTRICT
 );
 
---@block
 CREATE TABLE Gift_Shop_Sale_Line (
     Gift_Shop_Sale_Line_ID INT AUTO_INCREMENT PRIMARY KEY,
     Price_When_Item_is_Sold DECIMAL(10, 2) NOT NULL,
@@ -255,7 +240,7 @@ CREATE TABLE Gift_Shop_Sale_Line (
     Updated_By VARCHAR(30) NULL,
     Updated_At DATE NULL,
     CONSTRAINT fk_Gift_Shop_Sale_Line_Sale FOREIGN KEY (Gift_Shop_Sale_ID) REFERENCES Gift_Shop_Sale (Gift_Shop_Sale_ID) ON DELETE CASCADE,
-    CONSTRAINT fk_Gift_Shop_Sale_Line_Item FOREIGN KEY (Gift_Shop_Item_ID) REFERENCES Gift_Shop_Item (Gift_Shop_Item) ON DELETE RESTRICT,
+    CONSTRAINT fk_Gift_Shop_Sale_Line_Item FOREIGN KEY (Gift_Shop_Item_ID) REFERENCES Gift_Shop_Item (Gift_Shop_Item_ID) ON DELETE RESTRICT,
     CONSTRAINT chk_Gift_Shop_Sale_Line_Qty CHECK (Quantity > 0),
     CONSTRAINT chk_Gift_Shop_Sale_Line_Price CHECK (Price_When_Item_is_Sold >= 0),
     CONSTRAINT chk_Gift_Shop_Sale_Line_Total CHECK (
