@@ -143,7 +143,7 @@ function registerRoutes(app, { pool }) {
       "SELECT Artist_ID, Artist_Name, Birth_Place, Date_of_Birth, Date_of_Death FROM Artist",
     );
 
-    let editArtist = null;
+    let editArtist = null; 
     if (req.query.edit_id) {
       const [rows] = await pool.query(
         "SELECT * FROM Artist WHERE Artist_ID = ?",
@@ -151,6 +151,10 @@ function registerRoutes(app, { pool }) {
       );
       editArtist = rows[0] || null;
     }
+
+
+
+
 
     const artistRows = artists.map((artist) => `
       <tr>
@@ -813,6 +817,8 @@ function registerRoutes(app, { pool }) {
       editTicket = rows[0] || null;
     }
 
+
+
     const ticketRows = tickets.map((ticket) => `
       <tr>
         <td>${ticket.Ticket_ID}</td>
@@ -940,6 +946,15 @@ function registerRoutes(app, { pool }) {
       FROM ticket_line tl
       LEFT JOIN Exhibition e ON tl.Exhibition_ID = e.Exhibition_ID
     `);
+    let editLine = null;
+
+    if (req.query.edit_ticket && req.query.edit_type) {
+    const [rows] = await pool.query(
+      "SELECT * FROM ticket_line WHERE Ticket_ID = ? AND Ticket_Type = ?",
+      [req.query.edit_ticket, req.query.edit_type],
+    );
+    editLine = rows[0] || null;
+    }
 
     const lineRows = lines.map((line) => `
       <tr>
@@ -949,6 +964,11 @@ function registerRoutes(app, { pool }) {
         <td>$${Number(line.Price_per_ticket).toFixed(2)}</td>
         <td>${escapeHtml(line.Exhibition_Name || "General")}</td>
         <td class="actions">
+            <form method="get" action="/add-ticket-line" class="inline-form">
+            <input type="hidden" name="edit_ticket" value="${line.Ticket_ID}">
+            <input type="hidden" name="edit_type" value="${line.Ticket_Type}">
+            <button class="link-button" type="submit">Edit</button>
+          </form>
           <form method="post" action="/delete-ticket-line" class="inline-form" onsubmit="return confirm('Remove this line item?');">
             <input type="hidden" name="ticket_id" value="${line.Ticket_ID}">
             <input type="hidden" name="ticket_type" value="${line.Ticket_Type}">
@@ -966,19 +986,25 @@ function registerRoutes(app, { pool }) {
         <h1>Add Ticket Line</h1>
         ${renderFlash(req)}
         <form method="post" action="/add-ticket-line" class="form-grid">
+        ${editLine ? `
+          <input type="hidden" name="original_type" value="${editLine.Ticket_Type}">
+        ` : ""}
           <label>Ticket
             <select name="ticket_id">
               ${tickets.map((ticket) => `<option value="${ticket.Ticket_ID}">Ticket #${ticket.Ticket_ID}</option>`).join("")}
             </select>
           </label>
           <label>Ticket Type
-            <input type="text" name="ticket_type" required>
+            <input type="text" name="ticket_type"
+            value="${editLine ? escapeHtml(editLine.Ticket_Type) : ""}" required>
           </label>
           <label>Quantity
-            <input type="number" name="quantity" required>
+            <input type="number" name="quantity"
+            value="${editLine ? editLine.Quantity : ""}" required>
           </label>
           <label>Price per Ticket
-            <input type="number" step="0.01" name="price" required>
+            <input type="number" step="0.01" name="price"
+            value="${editLine ? editLine.Price_per_ticket : ""}" required>
           </label>
           <label>Exhibition
             <select name="exhibition_id">
@@ -1018,21 +1044,34 @@ function registerRoutes(app, { pool }) {
       quantity,
       price,
       exhibition_id: exhibitionId,
+      original_type
     } = req.body;
 
     if (!ticketId || !ticketType || !quantity || !price) {
       setFlash(req, "All fields are required.");
       return res.redirect("/add-ticket-line");
     }
-
-    await pool.query(
+    if (original_type) {
+      await pool.query(
+        `UPDATE ticket_line
+        SET Quantity = ?, Price_per_ticket = ?, Exhibition_ID = ?
+        WHERE Ticket_ID = ? AND Ticket_Type = ?`,
+      [quantity, price, exhibitionId || null, ticketId, original_type],
+    );
+    setFlash(req, "Ticket line updated.");
+    } else {
+      await pool.query(
       `INSERT INTO ticket_line (Ticket_ID, Ticket_Type, Quantity, Price_per_ticket, Exhibition_ID)
        VALUES (?, ?, ?, ?, ?)`,
       [ticketId, ticketType, quantity, price, exhibitionId || null],
     );
+
     setFlash(req, "Ticket line added.");
-    res.redirect("/add-ticket-line");
-  }));
+  }
+
+  res.redirect("/add-ticket-line");
+}));
+
 
   app.post("/delete-ticket-line", requireLogin, asyncHandler(async (req, res) => {
     const { ticket_id: ticketId, ticket_type: ticketType } = req.body;
@@ -1050,6 +1089,15 @@ function registerRoutes(app, { pool }) {
       "SELECT Gift_Shop_Item_ID, Name_of_Item, Price_of_Item, Stock_Quantity FROM Gift_Shop_Item",
     );
 
+   let editItem = null;
+  if (req.query.edit_id) {
+    const [rows] = await pool.query(
+      "SELECT * FROM Gift_Shop_Item WHERE Gift_Shop_Item_ID = ?",
+      [req.query.edit_id],
+    );
+    editItem = rows[0] || null;
+  }
+
     const itemRows = items.map((item) => `
       <tr>
         <td>${item.Gift_Shop_Item_ID}</td>
@@ -1057,6 +1105,10 @@ function registerRoutes(app, { pool }) {
         <td>$${Number(item.Price_of_Item).toFixed(2)}</td>
         <td>${item.Stock_Quantity}</td>
         <td class="actions">
+            <form method="get" action="/add-item" class="inline-form">
+            <input type="hidden" name="edit_id" value="${item.Gift_Shop_Item_ID}">
+            <button class="link-button" type="submit">Edit</button>
+          </form>
           <form method="post" action="/delete-item" class="inline-form" onsubmit="return confirm('Remove this item?');">
             <input type="hidden" name="item_id" value="${item.Gift_Shop_Item_ID}">
             <button class="link-button danger" type="submit">Delete</button>
@@ -1070,19 +1122,25 @@ function registerRoutes(app, { pool }) {
       user: req.session.user,
       content: `
       <section class="card narrow">
-        <h1>Add Gift Shop Item</h1>
+        <h1>${editItem ? "Edit Gift Shop Item" : "Add Gift Shop Item"}</h1>
         ${renderFlash(req)}
         <form method="post" action="/add-item" class="form-grid">
+          ${editItem ? `<input type="hidden" name="item_id" value="${editItem.Gift_Shop_Item_ID}">` : ""}
           <label>Name
-            <input type="text" name="name" required>
+            <input type="text" name="name" 
+            value="${editItem ? escapeHtml(editItem.Name_of_Item) : ""}" required>
           </label>
           <label>Price
-            <input type="number" step="0.01" name="price" required>
+            <input type="number" step="0.01" name="price" 
+             value="${editItem ? editItem.Price_of_Item : ""}" required>
           </label>
           <label>Stock
-            <input type="number" name="stock" required>
+            <input type="number" name="stock"
+            value="${editItem ? editItem.Stock_Quantity : ""}" required>
           </label>
-          <button class="button" type="submit">Add Item</button>
+          <button class="button" type="submit">
+              ${editItem ? "Update Item" : "Add Item"}
+            </button>
         </form>
       </section>
       <section class="card narrow">
@@ -1107,6 +1165,7 @@ function registerRoutes(app, { pool }) {
   }));
 
   app.post("/add-item", requireLogin, asyncHandler(async (req, res) => {
+    const itemId = req.body.item_id || null;
     const { name, price, stock } = req.body;
 
     if (!name || !price || !stock) {
@@ -1114,14 +1173,26 @@ function registerRoutes(app, { pool }) {
       return res.redirect("/add-item");
     }
 
+    if (itemId) {
+      await pool.query(
+        `UPDATE Gift_Shop_Item
+        SET Name_of_Item = ?, Price_of_Item = ?, Stock_Quantity = ?
+        WHERE Gift_Shop_Item_ID = ?`,
+        [name, price, stock, itemId],
+      );
+      setFlash(req, "Item updated.");
+  } else {
     await pool.query(
       `INSERT INTO Gift_Shop_Item (Name_of_Item, Price_of_Item, Stock_Quantity)
        VALUES (?, ?, ?)`,
       [name, price, stock],
     );
-    setFlash(req, "Item added successfully.");
-    res.redirect("/add-item");
-  }));
+
+    setFlash(req, "Item added.");
+  }
+
+  res.redirect("/add-item");
+}));
 
   app.post("/delete-item", requireLogin, asyncHandler(async (req, res) => {
     const idToDelete = req.body.item_id;
@@ -1139,12 +1210,25 @@ function registerRoutes(app, { pool }) {
   app.get("/add-food", requireLogin, asyncHandler(async (req, res) => {
     const [foods] = await pool.query("SELECT Food_ID, Food_Name, Food_Price FROM Food");
 
+    let editFood = null;
+    if (req.query.edit_id) {
+    const [rows] = await pool.query(
+      "SELECT * FROM Food WHERE Food_ID = ?",
+      [req.query.edit_id],
+    );
+    editFood = rows[0] || null;
+    }
+
     const foodRows = foods.map((food) => `
       <tr>
         <td>${food.Food_ID}</td>
         <td>${escapeHtml(food.Food_Name)}</td>
         <td>$${Number(food.Food_Price).toFixed(2)}</td>
         <td class="actions">
+        <form method="get" action="/add-food" class="inline-form">
+          <input type="hidden" name="edit_id" value="${food.Food_ID}">
+          <button class="link-button" type="submit">Edit</button>
+        </form>
           <form method="post" action="/delete-food" class="inline-form" onsubmit="return confirm('Delete this food item?');">
             <input type="hidden" name="food_id" value="${food.Food_ID}">
             <button class="link-button danger" type="submit">Delete</button>
@@ -1158,16 +1242,21 @@ function registerRoutes(app, { pool }) {
       user: req.session.user,
       content: `
       <section class="card narrow">
-        <h1>Add Food Item</h1>
+        <h1>${editFood ? "Edit Food" : "Add Food Item"}</h1>
         ${renderFlash(req)}
         <form method="post" action="/add-food" class="form-grid">
+        ${editFood ? `<input type="hidden" name="food_id" value="${editFood.Food_ID}">` : ""}
           <label>Food Name
-            <input type="text" name="food_name" required>
+            <input type="text" name="food_name"
+            value="${editFood ? escapeHtml(editFood.Food_Name) : ""}" required>
           </label>
           <label>Food Price
-            <input type="number" step="0.01" name="food_price" required>
+            <input type="number" step="0.01" name="food_price" 
+            value="${editFood ? editFood.Food_Price : ""}" required>
           </label>
-          <button class="button" type="submit">Add Food</button>
+         <button class="button" type="submit">
+            ${editFood ? "Update Food" : "Add Food"}
+          </button>
         </form>
       </section>
       <section class="card narrow">
@@ -1191,18 +1280,26 @@ function registerRoutes(app, { pool }) {
   }));
 
   app.post("/add-food", requireLogin, asyncHandler(async (req, res) => {
+    const foodId = req.body.food_id || null;
     const { food_name: foodName, food_price: foodPrice } = req.body;
 
     if (!foodName || !foodPrice) {
       setFlash(req, "All fields are required.");
       return res.redirect("/add-food");
     }
-
+    if (foodId) {
+      await pool.query(
+      "UPDATE Food SET Food_Name = ?, Food_Price = ? WHERE Food_ID = ?",
+      [foodName, foodPrice, foodId],
+    );
+    setFlash(req, "Food updated.");
+  } else {
     await pool.query(
       "INSERT INTO Food (Food_Name, Food_Price) VALUES (?, ?)",
       [foodName, foodPrice],
     );
     setFlash(req, "Food added.");
+  }
     res.redirect("/add-food");
   }));
 
@@ -1222,12 +1319,26 @@ function registerRoutes(app, { pool }) {
 
     const [sales] = await pool.query("SELECT Food_Sale_ID, Sale_Date, Employee_ID FROM Food_Sale");
 
+    let editSale = null;
+
+    if (req.query.edit_id) {
+      const [rows] = await pool.query(
+        "SELECT * FROM Food_Sale WHERE Food_Sale_ID = ?",
+        [req.query.edit_id],
+      );
+      editSale = rows[0] || null;
+    }
+
     const saleRows = sales.map((sale) => `
       <tr>
         <td>#${sale.Food_Sale_ID}</td>
         <td>${formatDisplayDate(sale.Sale_Date)}</td>
         <td>${escapeHtml(sale.Employee_ID)}</td>
         <td class="actions">
+          <form method="get" action="/add-food-sale" class="inline-form">
+          <input type="hidden" name="edit_id" value="${sale.Food_Sale_ID}">
+          <button class="link-button" type="submit">Edit</button>
+        </form>
           <form method="post" action="/delete-food-sale" class="inline-form" onsubmit="return confirm('Delete this sale?');">
             <input type="hidden" name="sale_id" value="${sale.Food_Sale_ID}">
             <button class="link-button danger" type="submit">Delete</button>
@@ -1241,13 +1352,17 @@ function registerRoutes(app, { pool }) {
       user: req.session.user,
       content: `
       <section class="card narrow">
-        <h1>Add Food Sale</h1>
+        <h1>${editSale ? "Edit Food Sale" : "Add Food Sale"}</h1>
         ${renderFlash(req)}
         <form method="post" action="/add-food-sale" class="form-grid">
+        ${editSale ? `<input type="hidden" name="sale_id" value="${editSale.Food_Sale_ID}">` : ""}
           <label>Sale Date
-            <input type="date" name="sale_date" required>
+            <input type="date" name="sale_date" 
+            value="${editSale ? formatDateInput(editSale.Sale_Date) : ""}" required>
           </label>
-          <button class="button" type="submit">Create Sale</button>
+            <button class="button" type="submit">
+            ${editSale ? "Update Sale" : "Create Sale"}
+          </button>
         </form>
       </section>
       <section class="card narrow">
@@ -1269,6 +1384,7 @@ function registerRoutes(app, { pool }) {
   }));
 
   app.post("/add-food-sale", requireLogin, asyncHandler(async (req, res) => {
+    const saleId = req.body.sale_id || null;
     const { sale_date: saleDate } = req.body;
 
     if (!saleDate) {
@@ -1276,11 +1392,21 @@ function registerRoutes(app, { pool }) {
       return res.redirect("/add-food-sale");
     }
 
-    await pool.query(
+    if (saleId) {
+      await pool.query(
+      "UPDATE Food_Sale SET Sale_Date = ? WHERE Food_Sale_ID = ?",
+      [saleDate, saleId],
+    );
+
+    setFlash(req, "Food sale updated.");
+    return res.redirect("/add-food-sale");
+  } else {
+      await pool.query(
       "INSERT INTO Food_Sale (Sale_Date, Employee_ID) VALUES (?, ?)",
       [saleDate, req.session.user.employeeId],
     );
     setFlash(req, "Food sale created. Now add items.");
+  }
     res.redirect("/add-food-sale-line");
   }));
 
@@ -1307,6 +1433,16 @@ function registerRoutes(app, { pool }) {
       JOIN Food f ON fsl.Food_ID = f.Food_ID
     `);
 
+    let editLine = null;
+
+    if (req.query.edit_sale && req.query.edit_food) {
+      const [rows] = await pool.query(
+        "SELECT * FROM Food_Sale_Line WHERE Food_Sale_ID = ? AND Food_ID = ?",
+        [req.query.edit_sale, req.query.edit_food],
+      );
+      editLine = rows[0] || null;
+    }
+
     const lineRows = lines.map((line) => `
       <tr>
         <td>#${line.Food_Sale_ID}</td>
@@ -1314,6 +1450,11 @@ function registerRoutes(app, { pool }) {
         <td>${line.Quantity}</td>
         <td>$${Number(line.Price_When_Food_Was_Sold).toFixed(2)}</td>
         <td class="actions">
+          <form method="get" action="/add-food-sale-line" class="inline-form">
+            <input type="hidden" name="edit_sale" value="${line.Food_Sale_ID}">
+            <input type="hidden" name="edit_food" value="${line.Food_ID}">
+            <button class="link-button" type="submit">Edit</button>
+          </form>
           <form method="post" action="/delete-food-sale-line" class="inline-form" onsubmit="return confirm('Remove item from sale?');">
             <input type="hidden" name="sale_id" value="${line.Food_Sale_ID}">
             <input type="hidden" name="food_id" value="${line.Food_ID}">
@@ -1328,9 +1469,12 @@ function registerRoutes(app, { pool }) {
       user: req.session.user,
       content: `
       <section class="card narrow">
-        <h1>Add Food to Sale</h1>
+        <h1>${editLine ? "Edit Food Sale Line" : "Add Food to Sale"}</h1>
         ${renderFlash(req)}
         <form method="post" action="/add-food-sale-line" class="form-grid">
+          ${editLine ? `
+          <input type="hidden" name="original_food" value="${editLine.Food_ID}">
+        ` : ""}
           <label>Sale
             <select name="sale_id">
               ${sales.map((sale) => `<option value="${sale.Food_Sale_ID}">Sale #${sale.Food_Sale_ID}</option>`).join("")}
@@ -1341,8 +1485,11 @@ function registerRoutes(app, { pool }) {
               ${foods.map((food) => `<option value="${food.Food_ID}">${escapeHtml(food.Food_Name)} ($${food.Food_Price})</option>`).join("")}
             </select>
           </label>
-          <label>Quantity<input type="number" name="quantity" required></label>
-          <button class="button" type="submit">Add Food</button>
+          <label>Quantity<input type="number" name="quantity" 
+          value="${editLine ? editLine.Quantity : ""}" required></label>
+          <button class="button" type="submit">
+              ${editLine ? "Update Food" : "Add Food"}
+            </button>
         </form>
       </section>
       <section class="card narrow">
@@ -1365,7 +1512,8 @@ function registerRoutes(app, { pool }) {
   }));
 
   app.post("/add-food-sale-line", requireLogin, asyncHandler(async (req, res) => {
-    const { sale_id: saleId, food_id: foodId, quantity } = req.body;
+    
+    const { sale_id: saleId, food_id: foodId, quantity, original_food } = req.body;
 
     if (!saleId || !foodId || !quantity) {
       setFlash(req, "All fields are required.");
@@ -1373,12 +1521,22 @@ function registerRoutes(app, { pool }) {
     }
 
     const [[food]] = await pool.query("SELECT Food_Price FROM Food WHERE Food_ID = ?", [foodId]);
+    if (original_food) {
+      await pool.query(
+        `UPDATE Food_Sale_Line
+        SET Quantity = ?
+        WHERE Food_Sale_ID = ? AND Food_ID = ?`,
+        [quantity, saleId, original_food],
+    );
+      setFlash(req, "Food sale line updated.");
+  } else {
     await pool.query(
       `INSERT INTO Food_Sale_Line (Food_Sale_ID, Food_ID, Quantity, Price_When_Food_Was_Sold)
        VALUES (?, ?, ?, ?)`,
       [saleId, foodId, quantity, food.Food_Price],
     );
     setFlash(req, "Food added to sale.");
+  }
     res.redirect("/add-food-sale-line");
   }));
 
@@ -1400,12 +1558,25 @@ function registerRoutes(app, { pool }) {
     }
 
     const [sales] = await pool.query("SELECT Gift_Shop_Sale_ID, Sale_Date, Employee_ID FROM Gift_Shop_Sale");
+    let editSale = null;
+
+      if (req.query.edit_id) {
+        const [rows] = await pool.query(
+          "SELECT * FROM Gift_Shop_Sale WHERE Gift_Shop_Sale_ID = ?",
+          [req.query.edit_id],
+        );
+        editSale = rows[0] || null;
+      }
     const saleRows = sales.map((sale) => `
       <tr>
         <td>#${sale.Gift_Shop_Sale_ID}</td>
         <td>${formatDisplayDate(sale.Sale_Date)}</td>
         <td>${escapeHtml(sale.Employee_ID)}</td>
         <td class="actions">
+        <form method="get" action="/add-sale" class="inline-form">
+          <input type="hidden" name="edit_id" value="${sale.Gift_Shop_Sale_ID}">
+          <button class="link-button" type="submit">Edit</button>
+          </form>
           <form method="post" action="/delete-sale" class="inline-form" onsubmit="return confirm('Delete this sale?');">
             <input type="hidden" name="sale_id" value="${sale.Gift_Shop_Sale_ID}">
             <button class="link-button danger" type="submit">Delete</button>
@@ -1419,13 +1590,17 @@ function registerRoutes(app, { pool }) {
       user: req.session.user,
       content: `
       <section class="card narrow">
-        <h1>Add Gift Shop Sale</h1>
+        <h1>${editSale ? "Edit Gift Shop Sale" : "Add Gift Shop Sale"}</h1>
         ${renderFlash(req)}
         <form method="post" action="/add-sale" class="form-grid">
+        ${editSale ? `<input type="hidden" name="sale_id" value="${editSale.Gift_Shop_Sale_ID}">` : ""}
           <label>Sale Date
-            <input type="date" name="sale_date" required>
+            <input type="date" name="sale_date" 
+            value="${editSale ? formatDateInput(editSale.Sale_Date) : ""}" required>
           </label>
-          <button class="button" type="submit">Create Sale</button>
+          <button class="button" type="submit">
+              ${editSale ? "Update Sale" : "Create Sale"}
+            </button>
         </form>
       </section>
       <section class="card narrow">
@@ -1440,19 +1615,29 @@ function registerRoutes(app, { pool }) {
   }));
 
   app.post("/add-sale", requireLogin, asyncHandler(async (req, res) => {
+    const saleId = req.body.sale_id || null;
     const { sale_date: saleDate } = req.body;
 
     if (!saleDate) {
       setFlash(req, "Sale date is required.");
       return res.redirect("/add-sale");
     }
+    if (saleId) {
+      await pool.query(
+      "UPDATE Gift_Shop_Sale SET Sale_Date = ? WHERE Gift_Shop_Sale_ID = ?",
+      [saleDate, saleId],
+    );
 
+    setFlash(req, "Sale updated.");
+    return res.redirect("/add-sale");
+  } else {
     await pool.query(
       "INSERT INTO Gift_Shop_Sale (Sale_Date, Employee_ID) VALUES (?, ?)",
       [saleDate, req.session.user.employeeId],
     );
     setFlash(req, "Sale created. Now add items to it.");
     res.redirect("/add-sale-line");
+  }
   }));
 
   app.post("/delete-sale", requireLogin, asyncHandler(async (req, res) => {
@@ -1478,6 +1663,15 @@ function registerRoutes(app, { pool }) {
       JOIN Gift_Shop_Item i ON gsl.Gift_Shop_Item_ID = i.Gift_Shop_Item_ID
     `);
 
+      let editLine = null;
+
+      if (req.query.edit_sale && req.query.edit_item) {
+        const [rows] = await pool.query(
+          "SELECT * FROM Gift_Shop_Sale_Line WHERE Gift_Shop_Sale_ID = ? AND Gift_Shop_Item_ID = ?",
+          [req.query.edit_sale, req.query.edit_item],
+        );
+        editLine = rows[0] || null;
+      }
     const lineRows = lines.map((line) => `
       <tr>
         <td>#${line.Gift_Shop_Sale_ID}</td>
@@ -1486,6 +1680,11 @@ function registerRoutes(app, { pool }) {
         <td>$${Number(line.Price_When_Item_is_Sold).toFixed(2)}</td>
         <td>$${Number(line.Total_Sum_For_Gift_Shop_Sale).toFixed(2)}</td>
         <td class="actions">
+        <form method="get" action="/add-sale-line" class="inline-form">
+          <input type="hidden" name="edit_sale" value="${line.Gift_Shop_Sale_ID}">
+          <input type="hidden" name="edit_item" value="${line.Gift_Shop_Item_ID}">
+          <button class="link-button" type="submit">Edit</button>
+        </form>
           <form method="post" action="/delete-sale-line" class="inline-form" onsubmit="return confirm('Remove item from sale?');">
             <input type="hidden" name="sale_id" value="${line.Gift_Shop_Sale_ID}">
             <input type="hidden" name="item_id" value="${line.Gift_Shop_Item_ID}">
@@ -1500,9 +1699,12 @@ function registerRoutes(app, { pool }) {
       user: req.session.user,
       content: `
       <section class="card narrow">
-        <h1>Add Item to Sale</h1>
+         <h1>${editLine ? "Edit Item in Sale" : "Add Item to Sale"}</h1>
         ${renderFlash(req)}
         <form method="post" action="/add-sale-line" class="form-grid">
+        ${editLine ? `
+            <input type="hidden" name="original_item" value="${editLine.Gift_Shop_Item_ID}">
+          ` : ""}
           <label>Sale
             <select name="sale_id">
               ${sales.map((sale) => `<option value="${sale.Gift_Shop_Sale_ID}">Sale #${sale.Gift_Shop_Sale_ID}</option>`).join("")}
@@ -1514,9 +1716,11 @@ function registerRoutes(app, { pool }) {
             </select>
           </label>
           <label>Quantity
-            <input type="number" name="quantity" required>
+            <input type="number" name="quantity" value="${editLine ? editLine.Quantity : ""}" required>
           </label>
-          <button class="button" type="submit">Add Item</button>
+           <button class="button" type="submit">
+            ${editLine ? "Update Item" : "Add Item"}
+          </button>
         </form>
       </section>
       <section class="card narrow">
@@ -1531,7 +1735,7 @@ function registerRoutes(app, { pool }) {
   }));
 
   app.post("/add-sale-line", requireLogin, asyncHandler(async (req, res) => {
-    const { sale_id: saleId, item_id: itemId, quantity } = req.body;
+    const { sale_id: saleId, item_id: itemId, quantity, original_item } = req.body;
 
     if (!saleId || !itemId || !quantity) {
       setFlash(req, "All fields are required.");
@@ -1545,6 +1749,15 @@ function registerRoutes(app, { pool }) {
     const price = item.Price_of_Item;
     const total = price * quantity;
 
+    if (original_item) {
+      await pool.query(
+      `UPDATE Gift_Shop_Sale_Line
+       SET Quantity = ?, Total_Sum_For_Gift_Shop_Sale = ?
+       WHERE Gift_Shop_Sale_ID = ? AND Gift_Shop_Item_ID = ?`,
+      [quantity, total, saleId, original_item],
+    );
+    setFlash(req, "Sale line updated.");
+  } else {
     await pool.query(
       `INSERT INTO Gift_Shop_Sale_Line
        (Gift_Shop_Sale_ID, Gift_Shop_Item_ID, Quantity, Price_When_Item_is_Sold, Total_Sum_For_Gift_Shop_Sale)
@@ -1552,6 +1765,7 @@ function registerRoutes(app, { pool }) {
       [saleId, itemId, quantity, price, total],
     );
     setFlash(req, "Item added to sale.");
+  }
     res.redirect("/add-sale-line");
   }));
 
