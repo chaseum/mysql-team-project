@@ -37,11 +37,38 @@ function registerRoutes(app, { pool }) {
       <section class="card narrow">
         <h1>Log In</h1>
         ${renderFlash(req)}
-        <form method="post" action="/login" class="form-grid">
+        <form id="login-form" method="post" action="/login" class="form-grid">
           <label>Email<input type="email" name="email" required></label>
           <label>Password<input type="password" name="password" required></label>
-          <button class="button" type="submit">Log In</button>
         </form>
+        <div class="button-row form-actions">
+          <button class="button" type="submit" form="login-form">Log In</button>
+          <a class="button" href="/signup">Sign Up</a>
+        </div>
+      </section>
+    `,
+    }));
+  });
+
+  app.get("/signup", (req, res) => {
+    res.send(renderPage({
+      title: "Sign Up",
+      user: req.session.user,
+      content: `
+      <section class="card narrow">
+        <h1>Member Sign Up</h1>
+        ${renderFlash(req)}
+        <form id="signup-form" method="post" action="/signup" class="form-grid">
+          <label>First Name<input type="text" name="first_name" required></label>
+          <label>Last Name<input type="text" name="last_name" required></label>
+          <label>Email<input type="email" name="email" required></label>
+          <label>Phone<input type="tel" name="phone"></label>
+          <label>Password<input type="password" name="password" required></label>
+        </form>
+        <div class="button-row form-actions">
+          <button class="button" type="submit" form="signup-form">Create Account</button>
+          <a class="button" href="/login">Log In</a>
+        </div>
       </section>
     `,
     }));
@@ -74,6 +101,63 @@ function registerRoutes(app, { pool }) {
     };
 
     res.redirect("/dashboard");
+  }));
+
+  app.post("/signup", asyncHandler(async (req, res) => {
+    const firstName = req.body.first_name?.trim();
+    const lastName = req.body.last_name?.trim();
+    const email = req.body.email?.trim().toLowerCase();
+    const phone = req.body.phone?.trim();
+    const password = req.body.password?.trim();
+
+    if (!firstName || !lastName || !email || !password) {
+      setFlash(req, "Please fill in all required fields.");
+      return res.redirect("/signup");
+    }
+
+    const [existingUsers] = await pool.query(
+      "SELECT id FROM users WHERE email = ?",
+      [email],
+    );
+
+    if (existingUsers.length > 0) {
+      setFlash(req, "An account with that email already exists.");
+      return res.redirect("/signup");
+    }
+
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      const [membershipResult] = await connection.query(
+        `INSERT INTO Membership (First_Name, Last_Name, Email, Phone_Number, Date_Joined)
+         VALUES (?, ?, ?, ?, CURRENT_DATE)`,
+        [firstName, lastName, email, phone || null],
+      );
+
+      await connection.query(
+        `INSERT INTO users (name, email, password, role, is_active, membership_id)
+         VALUES (?, ?, ?, 'user', TRUE, ?)`,
+        [`${firstName} ${lastName}`, email, password, membershipResult.insertId],
+      );
+
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+
+      if (error && error.code === "ER_DUP_ENTRY") {
+        setFlash(req, "An account with that email already exists.");
+        return res.redirect("/signup");
+      }
+
+      throw error;
+    } finally {
+      connection.release();
+    }
+
+    setFlash(req, "Account created. Please log in.");
+    res.redirect("/login");
   }));
 
   app.post("/logout", (req, res) => {
@@ -847,7 +931,7 @@ function registerRoutes(app, { pool }) {
       <section class="card narrow">
         <h1>${editTicket ? "Edit Ticket" : "Add Ticket"}</h1>
         ${renderFlash(req)}
-        <form method="post" action="/add-ticket" class="form-grid">
+        <form id="ticket-form" method="post" action="/add-ticket" class="form-grid">
           ${editTicket ? `<input type="hidden" name="ticket_id" value="${editTicket.Ticket_ID}">` : ""}
           <label>Purchase Type
             <input type="text" name="type" value="${editTicket ? escapeHtml(editTicket.Purchase_type || "") : ""}" required>
@@ -864,8 +948,10 @@ function registerRoutes(app, { pool }) {
           <label>Email
             <input type="email" name="email" value="${editTicket ? escapeHtml(editTicket.Email || "") : ""}">
           </label>
-          <button class="button" type="submit">${editTicket ? "Update Ticket" : "Add Ticket"}</button>
         </form>
+        <div class="button-row form-actions">
+          <button class="button" type="submit" form="ticket-form">${editTicket ? "Update Ticket" : "Add Ticket"}</button>
+        </div>
       </section>
       <section class="card narrow">
         <h2>Recent Tickets</h2>
