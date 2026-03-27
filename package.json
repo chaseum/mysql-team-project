@@ -1,0 +1,8 @@
+{
+  "name": "mysql-team-project",
+  "private": true,
+  "scripts": {
+    "postinstall": "npm --prefix webapp install",
+    "start": "npm --prefix webapp start"
+  }
+}

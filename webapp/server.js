@@ -10,6 +10,7 @@ loadEnv(path.join(__dirname, ".env"));
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
+const host = "0.0.0.0";
 const pool = createPool(process.env);
 
 app.use(express.urlencoded({ extended: true }));
@@ -41,6 +42,6 @@ app.use((err, req, res, next) => {
   res.redirect(req.headers.referer || "/");
 });
 
-app.listen(port, () => {
-  console.log(`Museum login app running on http://localhost:${port}`);
+app.listen(port, host, () => {
+  console.log(`Museum login app running on http://${host}:${port}`);
 });
